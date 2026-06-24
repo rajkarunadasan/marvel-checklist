@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Marvel Watch" />
+  <meta name="description" content="Track every Marvel movie and series you've watched" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <title>Marvel Checklist</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    
+    :root {
+      --bg: #0a0a0f;
+      --bg2: #111120;
+      --bg3: #13131f;
+      --bg4: #1a1a2a;
+      --border: #222230;
+      --text: #e8e8f0;
+      --muted: #888;
+      --dim: #555;
+      --accent: #e74c3c;
+      --green: #2ecc71;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; overflow-x: hidden; }
+
+    /* ── HEADER ── */
+    #header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(10,10,15,0.97);
+      border-bottom: 1px solid var(--border);
+      padding: calc(var(--safe-top) + 12px) 16px 12px;
+      backdrop-filter: blur(12px);
+    }
+    #header h1 {
+      font-size: 22px; font-weight: 800; letter-spacing: -0.5px;
+      background: linear-gradient(90deg, #e74c3c, #f39c12, #e91e8c);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      margin-bottom: 2px;
+    }
+    #header p { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+    #progress-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+    #progress-pct { font-weight: 700; }
+    #progress-bar { height: 5px; background: var(--bg4); border-radius: 3px; overflow: hidden; margin-bottom: 12px; }
+    #progress-fill { height: 100%; background: linear-gradient(90deg, #e74c3c, #f39c12); border-radius: 3px; transition: width 0.3s ease; }
+
+    #controls { display: flex; gap: 8px; flex-wrap: wrap; }
+    #search {
+      flex: 1 1 160px; background: var(--bg4); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 12px; color: var(--text); font-size: 13px; outline: none;
+    }
+    #search::placeholder { color: var(--dim); }
+    .filter-btn {
+      background: var(--bg4); border: 1px solid var(--border); border-radius: 8px;
+      padding: 7px 13px; color: var(--muted); font-size: 12px; cursor: pointer;
+      font-weight: 500; transition: all 0.15s;
+    }
+    .filter-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+    #reset-btn { background: var(--bg4); border: 1px solid var(--border); border-radius: 8px; padding: 7px 12px; color: var(--dim); font-size: 12px; cursor: pointer; }
+
+    /* ── MAIN ── */
+    #main { padding: 16px 12px calc(var(--safe-bottom) + 20px); max-width: 680px; margin: 0 auto; }
+
+    /* ── SECTION ── */
+    .section { margin-bottom: 12px; background: var(--bg2); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
+    .sec-header {
+      display: flex; align-items: center; gap: 10px; padding: 13px 14px;
+      background: var(--bg3); cursor: pointer; user-select: none;
+      border-left: 4px solid var(--sec-color);
+    }
+    .sec-check { width: 17px; height: 17px; cursor: pointer; flex-shrink: 0; }
+    .sec-title { flex: 1; font-weight: 700; font-size: 13px; line-height: 1.3; }
+    .sec-count {
+      font-size: 11px; background: var(--bg4); padding: 2px 9px;
+      border-radius: 20px; color: var(--muted); white-space: nowrap; flex-shrink: 0;
+    }
+    .sec-count.done { color: var(--green); }
+    .sec-arrow { color: var(--dim); font-size: 11px; flex-shrink: 0; }
+
+    /* ── ITEMS ── */
+    .item {
+      display: flex; align-items: center; gap: 11px;
+      padding: 10px 14px 10px 18px;
+      border-bottom: 1px solid #16162a;
+      cursor: pointer; transition: background 0.12s;
+      -webkit-user-select: none; user-select: none;
+    }
+    .item:last-child { border-bottom: none; }
+    .item:active { background: #1a1a2e; }
+    .item.watched { background: #0c160c; }
+    .item-check { width: 18px; height: 18px; cursor: pointer; flex-shrink: 0; accent-color: var(--sec-color, #e74c3c); }
+    .item-title { flex: 1; font-size: 13.5px; color: var(--text); font-weight: 500; line-height: 1.3; }
+    .item.watched .item-title { color: #4a5a4a; text-decoration: line-through; font-weight: 400; }
+    .item-year { font-size: 11px; color: var(--dim); min-width: 34px; text-align: right; flex-shrink: 0; }
+    .badge {
+      font-size: 9px; padding: 2px 7px; border-radius: 20px; color: #fff;
+      font-weight: 700; opacity: 0.85; flex-shrink: 0; white-space: nowrap;
+      letter-spacing: 0.2px;
+    }
+
+    /* ── COMPLETION ── */
+    #completion {
+      display: none; text-align: center; padding: 48px 24px;
+      background: #0d1a0d; border-radius: 12px; border: 1px solid var(--green);
+    }
+    #completion .trophy { font-size: 52px; margin-bottom: 14px; }
+    #completion h2 { color: var(--green); font-size: 22px; margin-bottom: 8px; }
+    #completion p { color: #668866; font-size: 14px; }
+
+    /* ── EMPTY ── */
+    #empty { display: none; text-align: center; padding: 40px; color: var(--muted); font-size: 14px; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <h1>🦸 Marvel Universe</h1>
+  <p id="subtitle">Loading...</p>
+  <div id="progress-row">
+    <span id="progress-text">0 / 0 watched</span>
+    <span id="progress-pct">0%</span>
+  </div>
+  <div id="progress-bar"><div id="progress-fill" style="width:0%"></div></div>
+  <div id="controls">
+    <input id="search" type="search" placeholder="🔍 Search titles..." autocomplete="off" autocorrect="off" />
+    <button class="filter-btn active" data-f="all">All</button>
+    <button class="filter-btn" data-f="watched">Watched</button>
+    <button class="filter-btn" data-f="unwatched">Unwatched</button>
+    <button id="reset-btn">Reset</button>
+  </div>
+</div>
+
+<div id="main"></div>
+
+<script>
+const SECTIONS = [
+  {
+    id:"raimi", label:"🕷️ Sam Raimi Spider-Man Trilogy", color:"#c0392b",
+    items:[
+      {id:"sm1",t:"Spider-Man",y:2002,tp:"Movie"},
+      {id:"sm2",t:"Spider-Man 2",y:2004,tp:"Movie"},
+      {id:"sm3",t:"Spider-Man 3",y:2007,tp:"Movie"},
+    ]
+  },
+  {
+    id:"amazing", label:"🕸️ The Amazing Spider-Man Series", color:"#1a6eb5",
+    items:[
+      {id:"asm1",t:"The Amazing Spider-Man",y:2012,tp:"Movie"},
+      {id:"asm2",t:"The Amazing Spider-Man 2",y:2014,tp:"Movie"},
+    ]
+  },
+  {
+    id:"xmen", label:"⚡ X-Men — Fox Universe", color:"#6c3483",
+    items:[
+      {id:"xm1",t:"X-Men",y:2000,tp:"Movie"},
+      {id:"xm2",t:"X2: X-Men United",y:2003,tp:"Movie"},
+      {id:"xm3",t:"X-Men: The Last Stand",y:2006,tp:"Movie"},
+      {id:"xm4",t:"X-Men Origins: Wolverine",y:2009,tp:"Movie"},
+      {id:"xm5",t:"X-Men: First Class",y:2011,tp:"Movie"},
+      {id:"xm6",t:"The Wolverine",y:2013,tp:"Movie"},
+      {id:"xm7",t:"X-Men: Days of Future Past",y:2014,tp:"Movie"},
+      {id:"xm8",t:"Deadpool",y:2016,tp:"Movie"},
+      {id:"xm9",t:"X-Men: Apocalypse",y:2016,tp:"Movie"},
+      {id:"xm10",t:"Logan",y:2017,tp:"Movie"},
+      {id:"xm11",t:"Deadpool 2",y:2018,tp:"Movie"},
+      {id:"xm12",t:"Dark Phoenix",y:2019,tp:"Movie"},
+      {id:"xm13",t:"The New Mutants",y:2020,tp:"Movie"},
+    ]
+  },
+  {
+    id:"mcu1", label:"🛡️ MCU Phase 1 — The Infinity Saga", color:"#c0392b",
+    items:[
+      {id:"p1_1",t:"Iron Man",y:2008,tp:"Movie"},
+      {id:"p1_2",t:"The Incredible Hulk",y:2008,tp:"Movie"},
+      {id:"p1_3",t:"Iron Man 2",y:2010,tp:"Movie"},
+      {id:"p1_4",t:"Thor",y:2011,tp:"Movie"},
+      {id:"p1_5",t:"Captain America: The First Avenger",y:2011,tp:"Movie"},
+      {id:"p1_6",t:"The Avengers",y:2012,tp:"Movie"},
+    ]
+  },
+  {
+    id:"mcu2", label:"🛡️ MCU Phase 2 — The Infinity Saga", color:"#e67e22",
+    items:[
+      {id:"p2_1",t:"Iron Man 3",y:2013,tp:"Movie"},
+      {id:"p2_2",t:"Thor: The Dark World",y:2013,tp:"Movie"},
+      {id:"p2_3",t:"Captain America: The Winter Soldier",y:2014,tp:"Movie"},
+      {id:"p2_4",t:"Guardians of the Galaxy",y:2014,tp:"Movie"},
+      {id:"p2_5",t:"Avengers: Age of Ultron",y:2015,tp:"Movie"},
+      {id:"p2_6",t:"Ant-Man",y:2015,tp:"Movie"},
+    ]
+  },
+  {
+    id:"mcu3", label:"🛡️ MCU Phase 3 — The Infinity Saga", color:"#d4ac0d",
+    items:[
+      {id:"p3_1",t:"Captain America: Civil War",y:2016,tp:"Movie"},
+      {id:"p3_2",t:"Doctor Strange",y:2016,tp:"Movie"},
+      {id:"p3_3",t:"Guardians of the Galaxy Vol. 2",y:2017,tp:"Movie"},
+      {id:"p3_4",t:"Spider-Man: Homecoming",y:2017,tp:"Movie"},
+      {id:"p3_5",t:"Thor: Ragnarok",y:2017,tp:"Movie"},
+      {id:"p3_6",t:"Black Panther",y:2018,tp:"Movie"},
+      {id:"p3_7",t:"Avengers: Infinity War",y:2018,tp:"Movie"},
+      {id:"p3_8",t:"Ant-Man and the Wasp",y:2018,tp:"Movie"},
+      {id:"p3_9",t:"Captain Marvel",y:2019,tp:"Movie"},
+      {id:"p3_10",t:"Avengers: Endgame",y:2019,tp:"Movie"},
+      {id:"p3_11",t:"Spider-Man: Far From Home",y:2019,tp:"Movie"},
+    ]
+  },
+  {
+    id:"mcu4", label:"🌀 MCU Phase 4 — The Multiverse Saga", color:"#1abc9c",
+    items:[
+      {id:"p4_1",t:"WandaVision",y:2021,tp:"D+ Series"},
+      {id:"p4_2",t:"The Falcon and the Winter Soldier",y:2021,tp:"D+ Series"},
+      {id:"p4_3",t:"Loki (Season 1)",y:2021,tp:"D+ Series"},
+      {id:"p4_4",t:"Black Widow",y:2021,tp:"Movie"},
+      {id:"p4_5",t:"What If...? (Season 1)",y:2021,tp:"D+ Animated"},
+      {id:"p4_6",t:"Shang-Chi and the Legend of the Ten Rings",y:2021,tp:"Movie"},
+      {id:"p4_7",t:"Eternals",y:2021,tp:"Movie"},
+      {id:"p4_8",t:"Hawkeye",y:2021,tp:"D+ Series"},
+      {id:"p4_9",t:"Spider-Man: No Way Home",y:2021,tp:"Movie"},
+      {id:"p4_10",t:"Moon Knight",y:2022,tp:"D+ Series"},
+      {id:"p4_11",t:"Doctor Strange in the Multiverse of Madness",y:2022,tp:"Movie"},
+      {id:"p4_12",t:"Ms. Marvel",y:2022,tp:"D+ Series"},
+      {id:"p4_13",t:"Thor: Love and Thunder",y:2022,tp:"Movie"},
+      {id:"p4_14",t:"I Am Groot (Season 1)",y:2022,tp:"D+ Shorts"},
+      {id:"p4_15",t:"She-Hulk: Attorney at Law",y:2022,tp:"D+ Series"},
+      {id:"p4_16",t:"Werewolf by Night",y:2022,tp:"D+ Special"},
+      {id:"p4_17",t:"Black Panther: Wakanda Forever",y:2022,tp:"Movie"},
+      {id:"p4_18",t:"Guardians Holiday Special",y:2022,tp:"D+ Special"},
+    ]
+  },
+  {
+    id:"mcu5", label:"🌀 MCU Phase 5 — The Multiverse Saga", color:"#2980b9",
+    items:[
+      {id:"p5_1",t:"Ant-Man and the Wasp: Quantumania",y:2023,tp:"Movie"},
+      {id:"p5_2",t:"Guardians of the Galaxy Vol. 3",y:2023,tp:"Movie"},
+      {id:"p5_3",t:"Secret Invasion",y:2023,tp:"D+ Series"},
+      {id:"p5_4",t:"Loki (Season 2)",y:2023,tp:"D+ Series"},
+      {id:"p5_5",t:"What If...? (Season 2)",y:2023,tp:"D+ Animated"},
+      {id:"p5_6",t:"The Marvels",y:2023,tp:"Movie"},
+      {id:"p5_7",t:"Echo",y:2024,tp:"D+ Series"},
+      {id:"p5_8",t:"What If...? (Season 3)",y:2024,tp:"D+ Animated"},
+      {id:"p5_9",t:"Deadpool & Wolverine",y:2024,tp:"Movie"},
+      {id:"p5_10",t:"Agatha All Along",y:2024,tp:"D+ Series"},
+      {id:"p5_11",t:"Your Friendly Neighborhood Spider-Man S1",y:2025,tp:"D+ Animated"},
+      {id:"p5_12",t:"Captain America: Brave New World",y:2025,tp:"Movie"},
+      {id:"p5_13",t:"Daredevil: Born Again (Season 1)",y:2025,tp:"D+ Series"},
+      {id:"p5_14",t:"Thunderbolts*",y:2025,tp:"Movie"},
+      {id:"p5_15",t:"Ironheart",y:2025,tp:"D+ Series"},
+    ]
+  },
+  {
+    id:"mcu6", label:"🌀 MCU Phase 6 — The Multiverse Saga", color:"#8e44ad",
+    items:[
+      {id:"p6_1",t:"Fantastic Four: First Steps",y:2025,tp:"Movie"},
+      {id:"p6_2",t:"Eyes of Wakanda",y:2025,tp:"D+ Animated"},
+      {id:"p6_3",t:"Marvel Zombies (Season 1)",y:2025,tp:"D+ Animated"},
+      {id:"p6_4",t:"Wonder Man (Season 1)",y:2026,tp:"D+ Series"},
+      {id:"p6_5",t:"VisionQuest",y:2026,tp:"D+ Series"},
+      {id:"p6_6",t:"The Punisher: One Last Kill",y:2026,tp:"D+ Special"},
+      {id:"p6_7",t:"Daredevil: Born Again (Season 2)",y:2026,tp:"D+ Series"},
+      {id:"p6_8",t:"Your Friendly Neighborhood Spider-Man S2",y:2026,tp:"D+ Animated"},
+      {id:"p6_9",t:"Spider-Man: Brand New Day",y:2026,tp:"Movie"},
+      {id:"p6_10",t:"Avengers: Doomsday",y:2026,tp:"Movie"},
+      {id:"p6_11",t:"Avengers: Secret Wars",y:2027,tp:"Movie"},
+    ]
+  },
+  {
+    id:"netflix", label:"🗽 Netflix / Defenders Saga (Canon)", color:"#e74c3c",
+    items:[
+      {id:"nf1",t:"Daredevil (Season 1)",y:2015,tp:"Netflix"},
+      {id:"nf2",t:"Jessica Jones (Season 1)",y:2015,tp:"Netflix"},
+      {id:"nf3",t:"Daredevil (Season 2)",y:2016,tp:"Netflix"},
+      {id:"nf4",t:"Luke Cage (Season 1)",y:2016,tp:"Netflix"},
+      {id:"nf5",t:"Iron Fist (Season 1)",y:2017,tp:"Netflix"},
+      {id:"nf6",t:"The Defenders",y:2017,tp:"Netflix"},
+      {id:"nf7",t:"The Punisher (Season 1)",y:2017,tp:"Netflix"},
+      {id:"nf8",t:"Jessica Jones (Season 2)",y:2018,tp:"Netflix"},
+      {id:"nf9",t:"Luke Cage (Season 2)",y:2018,tp:"Netflix"},
+      {id:"nf10",t:"Iron Fist (Season 2)",y:2018,tp:"Netflix"},
+      {id:"nf11",t:"Daredevil (Season 3)",y:2018,tp:"Netflix"},
+      {id:"nf12",t:"The Punisher (Season 2)",y:2019,tp:"Netflix"},
+      {id:"nf13",t:"Jessica Jones (Season 3)",y:2019,tp:"Netflix"},
+    ]
+  },
+  {
+    id:"ssu", label:"🕷️ Sony's Spider-Man Universe (SSU)", color:"#2c3e50",
+    items:[
+      {id:"ssu1",t:"Venom",y:2018,tp:"Movie"},
+      {id:"ssu2",t:"Venom: Let There Be Carnage",y:2021,tp:"Movie"},
+      {id:"ssu3",t:"Morbius",y:2022,tp:"Movie"},
+      {id:"ssu4",t:"Madame Web",y:2024,tp:"Movie"},
+      {id:"ssu5",t:"Venom: The Last Dance",y:2024,tp:"Movie"},
+      {id:"ssu6",t:"Kraven the Hunter",y:2024,tp:"Movie"},
+    ]
+  },
+  {
+    id:"spiderverse", label:"🌐 Spider-Verse Animated Films", color:"#e91e8c",
+    items:[
+      {id:"sv1",t:"Spider-Man: Into the Spider-Verse",y:2018,tp:"Animated"},
+      {id:"sv2",t:"Spider-Man: Across the Spider-Verse",y:2023,tp:"Animated"},
+      {id:"sv3",t:"Spider-Man: Beyond the Spider-Verse",y:2027,tp:"Animated"},
+    ]
+  },
+  {
+    id:"xanim", label:"📺 X-Men Animated Series", color:"#f39c12",
+    items:[
+      {id:"xa1",t:"X-Men: The Animated Series",y:1992,tp:"Animated"},
+      {id:"xa2",t:"X-Men: Evolution",y:2000,tp:"Animated"},
+      {id:"xa3",t:"Wolverine and the X-Men",y:2008,tp:"Animated"},
+      {id:"xa4",t:"X-Men '97",y:2024,tp:"D+ Animated"},
+    ]
+  },
+];
+
+const TYPE_COLORS = {
+  "Movie":"#e74c3c","D+ Series":"#2563eb","D+ Animated":"#7c3aed",
+  "D+ Shorts":"#9333ea","D+ Special":"#059669","Netflix":"#dc2626",
+  "Animated":"#d97706","D+ Animated Shorts":"#9333ea"
+};
+
+const STORAGE_KEY = "marvel_pwa_v2";
+
+// Load/save
+function load() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch { return {}; }
+}
+function save(checked) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checked)); } catch {}
+}
+
+let checked = load();
+let collapsed = {};
+let currentFilter = "all";
+let currentSearch = "";
+
+const totalItems = SECTIONS.reduce((s,sec) => s + sec.items.length, 0);
+let subtitle = document.getElementById("subtitle");
+subtitle.textContent = `${totalItems} entries across all Marvel universes`;
+
+function getCheckedCount() {
+  return Object.values(checked).filter(Boolean).length;
+}
+
+function updateProgress() {
+  const n = getCheckedCount();
+  const pct = Math.round((n / totalItems) * 100);
+  document.getElementById("progress-text").textContent = `${n} / ${totalItems} watched`;
+  document.getElementById("progress-pct").textContent = `${pct}%`;
+  document.getElementById("progress-pct").style.color = pct === 100 ? "#2ecc71" : "#e74c3c";
+  document.getElementById("progress-fill").style.width = pct + "%";
+}
+
+function render() {
+  const main = document.getElementById("main");
+  main.innerHTML = "";
+  updateProgress();
+
+  let anyVisible = false;
+
+  SECTIONS.forEach(sec => {
+    const items = sec.items.filter(item => {
+      const matchFilter =
+        currentFilter === "all" ? true :
+        currentFilter === "watched" ? !!checked[item.id] :
+        !checked[item.id];
+      const matchSearch = item.t.toLowerCase().includes(currentSearch.toLowerCase());
+      return matchFilter && matchSearch;
+    });
+
+    if (items.length === 0) return;
+    anyVisible = true;
+
+    const allChecked = sec.items.every(i => checked[i.id]);
+    const secChecked = sec.items.filter(i => checked[i.id]).length;
+    const isCollapsed = collapsed[sec.id];
+
+    const secEl = document.createElement("div");
+    secEl.className = "section";
+
+    // Header
+    const hdr = document.createElement("div");
+    hdr.className = "sec-header";
+    hdr.style.setProperty("--sec-color", sec.color);
+    hdr.style.borderLeftColor = sec.color;
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.className = "sec-check";
+    cb.checked = allChecked;
+    cb.style.accentColor = sec.color;
+    cb.addEventListener("change", e => {
+      e.stopPropagation();
+      sec.items.forEach(i => { checked[i.id] = !allChecked; });
+      save(checked); render();
+    });
+
+    const title = document.createElement("span");
+    title.className = "sec-title";
+    title.textContent = sec.label;
+
+    const count = document.createElement("span");
+    count.className = "sec-count" + (secChecked === sec.items.length ? " done" : "");
+    count.textContent = `${secChecked}/${sec.items.length}`;
+
+    const arrow = document.createElement("span");
+    arrow.className = "sec-arrow";
+    arrow.textContent = isCollapsed ? "▶" : "▼";
+
+    hdr.append(cb, title, count, arrow);
+    hdr.addEventListener("click", () => {
+      collapsed[sec.id] = !collapsed[sec.id];
+      render();
+    });
+
+    secEl.appendChild(hdr);
+
+    if (!isCollapsed) {
+      items.forEach((item, i) => {
+        const row = document.createElement("div");
+        row.className = "item" + (checked[item.id] ? " watched" : "");
+        row.style.setProperty("--sec-color", sec.color);
+
+        const icb = document.createElement("input");
+        icb.type = "checkbox";
+        icb.className = "item-check";
+        icb.checked = !!checked[item.id];
+        icb.style.accentColor = sec.color;
+        icb.addEventListener("change", e => {
+          e.stopPropagation();
+          checked[item.id] = icb.checked;
+          save(checked); render();
+        });
+
+        const ttl = document.createElement("span");
+        ttl.className = "item-title";
+        ttl.textContent = item.t;
+
+        const yr = document.createElement("span");
+        yr.className = "item-year";
+        yr.textContent = item.y;
+
+        const badge = document.createElement("span");
+        badge.className = "badge";
+        badge.textContent = item.tp;
+        badge.style.background = TYPE_COLORS[item.tp] || "#333";
+
+        row.append(icb, ttl, yr, badge);
+        row.addEventListener("click", () => {
+          checked[item.id] = !checked[item.id];
+          save(checked); render();
+        });
+
+        secEl.appendChild(row);
+      });
+    }
+
+    main.appendChild(secEl);
+  });
+
+  // Empty state
+  if (!anyVisible) {
+    const empty = document.createElement("div");
+    empty.id = "empty";
+    empty.style.display = "block";
+    empty.style.textAlign = "center";
+    empty.style.padding = "40px";
+    empty.style.color = "#888";
+    empty.style.fontSize = "14px";
+    empty.textContent = "No results found.";
+    main.appendChild(empty);
+  }
+
+  // Completion
+  if (getCheckedCount() === totalItems) {
+    const comp = document.createElement("div");
+    comp.id = "completion";
+    comp.style.cssText = "display:block;text-align:center;padding:48px 24px;background:#0d1a0d;border-radius:12px;border:1px solid #2ecc71;margin-top:12px;";
+    comp.innerHTML = `
+      <div style="font-size:52px;margin-bottom:14px">🏆</div>
+      <h2 style="color:#2ecc71;font-size:22px;margin-bottom:8px">You've watched it ALL!</h2>
+      <p style="color:#668866;font-size:14px">Every single Marvel film and series — complete.</p>
+    `;
+    main.appendChild(comp);
+  }
+}
+
+// Filter buttons
+document.querySelectorAll(".filter-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentFilter = btn.dataset.f;
+    render();
+  });
+});
+
+// Search
+document.getElementById("search").addEventListener("input", e => {
+  currentSearch = e.target.value;
+  render();
+});
+
+// Reset
+document.getElementById("reset-btn").addEventListener("click", () => {
+  if (confirm("Reset all progress?")) {
+    checked = {};
+    save(checked);
+    render();
+  }
+});
+
+// Service worker
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+
+render();
+</script>
+</body>
+</html>
